@@ -148,7 +148,35 @@ android {
             useLegacyPackaging = true
         }
     }
+}
 
+// FakeSNI upstream stores the native sni-spoofing binaries as APK assets.
+// Keep them out of the v2rayNG source tree and fetch the exact audited commit
+// during the build so the resulting APK is still a single self-contained app.
+tasks.register("downloadFakeSniBinaries") {
+    val assetDir = file("src/main/assets/fakesni")
+    val commit = "e4c09c584b3b8d47fbfc5075ac8dde1570bdc513"
+    val files = mapOf(
+        "sni-spoofing-arm64" to "https://raw.githubusercontent.com/Salavatqweu/fakesni/$commit/app/src/main/assets/sni-spoofing-arm64",
+        "sni-spoofing-arm7" to "https://raw.githubusercontent.com/Salavatqweu/fakesni/$commit/app/src/main/assets/sni-spoofing-arm7",
+    )
+    outputs.files(files.keys.map { assetDir.resolve(it) })
+    doLast {
+        assetDir.mkdirs()
+        files.forEach { (name, url) ->
+            val target = assetDir.resolve(name)
+            if (!target.exists() || target.length() == 0L) {
+                logger.lifecycle("Downloading embedded FakeSNI binary: $name")
+                java.net.URL(url).openStream().use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+        }
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn("downloadFakeSniBinaries")
 }
 
 dependencies {
@@ -203,7 +231,6 @@ dependencies {
     // Testing Libraries
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
     testImplementation(libs.org.mockito.mockito.inline)
     testImplementation(libs.mockito.kotlin)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
