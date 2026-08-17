@@ -9,6 +9,9 @@ on:
   push:
     branches:
       - master
+  pull_request:
+    branches:
+      - master
 
 permissions:
   contents: write
@@ -33,9 +36,7 @@ jobs:
 
     - name: Install NDK
       run: |
-        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-          --channel=0 \
-          --install "ndk;29.0.14206865"
+        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --channel=0 --install "ndk;29.0.14206865"
         echo "NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
         sed -i '10i\
         \
@@ -50,9 +51,8 @@ jobs:
 
     - name: Build libhevtun
       if: steps.cache-libhevtun-restore.outputs.cache-hit != 'true'
-      run: |
-        bash compile-hevtun.sh
-    
+      run: bash compile-hevtun.sh
+
     - name: Save libhevtun
       if: steps.cache-libhevtun-restore.outputs.cache-hit != 'true'
       uses: actions/cache/save@v6
@@ -61,14 +61,12 @@ jobs:
         key: libhevtun-${{ runner.os }}-${{ env.NDK_HOME }}-${{ hashFiles('.git/modules/hev-socks5-tunnel/HEAD') }}-${{ hashFiles('compile-hevtun.sh') }}
 
     - name: Copy libhevtun
-      run: |
-        cp -r ${{ github.workspace }}/libs ${{ github.workspace }}/V2rayNG/app
+      run: cp -r ${{ github.workspace }}/libs ${{ github.workspace }}/V2rayNG/app
 
     - name: Fetch AndroidLibXrayLite tag
       run: |
         pushd AndroidLibXrayLite
         CURRENT_TAG=$(git describe --tags --abbrev=0)
-        echo "Current tag in this repo: $CURRENT_TAG"
         echo "CURRENT_TAG=$CURRENT_TAG" >> $GITHUB_ENV
         popd
 
@@ -80,18 +78,22 @@ jobs:
         fileName: 'libv2ray.aar'
         out-file-path: V2rayNG/app/libs/
 
+    - name: Download embedded FakeSNI binaries
+      run: |
+        set -euo pipefail
+        ASSET_DIR="${{ github.workspace }}/V2rayNG/app/src/main/assets/fakesni"
+        COMMIT="e4c09c584b3b8d47fbfc5075ac8dde1570bdc513"
+        mkdir -p "$ASSET_DIR"
+        curl -fL --retry 3 "https://raw.githubusercontent.com/Salavatqweu/fakesni/$COMMIT/app/src/main/assets/sni-spoofing-arm64" -o "$ASSET_DIR/sni-spoofing-arm64"
+        curl -fL --retry 3 "https://raw.githubusercontent.com/Salavatqweu/fakesni/$COMMIT/app/src/main/assets/sni-spoofing-arm7" -o "$ASSET_DIR/sni-spoofing-arm7"
+        chmod 755 "$ASSET_DIR/sni-spoofing-arm64" "$ASSET_DIR/sni-spoofing-arm7"
+        ls -lh "$ASSET_DIR"
+
     - name: Setup Java
       uses: actions/setup-java@v5.7.0
       with:
         distribution: 'temurin'
         java-version: '21'
-
-    - name: Decode Keystore
-      uses: timheuer/base64-to-file@v2.0.0
-      id: android_keystore
-      with:
-        fileName: "android_keystore.jks"
-        encodedString: ${{ secrets.APP_KEYSTORE_BASE64 }}
 
     - name: Build APK
       run: |
@@ -99,35 +101,22 @@ jobs:
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
         ./gradlew licenseFdroidReleaseReport
-        ./gradlew assembleRelease -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
-    
-    - name: Upload arm64-v8a APK
-      uses: actions/upload-artifact@v7
-      if: ${{  success() }}
-      with:
-        name: arm64-v8a
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*arm64-v8a*.apk
+        if [ -n "${{ secrets.APP_KEYSTORE_BASE64 }}" ] && [ -n "${{ secrets.APP_KEYSTORE_PASSWORD }}" ] && [ -n "${{ secrets.APP_KEYSTORE_ALIAS }}" ] && [ -n "${{ secrets.APP_KEY_PASSWORD }}" ]; then
+          echo "Using configured release keystore"
+          printf '%s' "${{ secrets.APP_KEYSTORE_BASE64 }}" | base64 --decode > android_keystore.jks
+          ./gradlew assembleRelease -Pandroid.injected.signing.store.file=${PWD}/android_keystore.jks -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+        else
+          echo "Release keystore is not configured; building unsigned APKs"
+          ./gradlew assembleRelease
+        fi
 
-    - name: Upload armeabi-v7a APK
-      uses: actions/upload-artifact@v7
-      if: ${{  success() }}
-      with:
-        name: armeabi-v7a
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*armeabi-v7a*.apk
-
-    - name: Upload x86 APK
-      uses: actions/upload-artifact@v7
-      if: ${{  success() }}
-      with:
-        name: x86-apk
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*x86*.apk
-
-    - name: Upload universal APK
+    - name: Upload APK artifacts
       uses: actions/upload-artifact@v7
       if: ${{ success() }}
       with:
-        name: universal-apk
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*universal*.apk
+        name: v2rayNG-fakeSNI-apks
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*.apk
+        if-no-files-found: error
 
   sign-and-release:
     needs: build
@@ -135,25 +124,35 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
 
     steps:
+      - name: Check release secrets
+        env:
+          HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY }}
+          HAS_KEYSTORE: ${{ secrets.APP_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$HAS_GPG" ] || [ -z "$HAS_KEYSTORE" ]; then
+            echo "Release signing secrets are not configured. Skipping release is required for now."
+            exit 1
+          fi
+
       - name: Download APK artifacts
         uses: actions/download-artifact@v8
         with:
           path: release
 
       - name: Sign APK files
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
-          printf '%s' "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
           KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')
           mkdir -p release-files
-
           find release -type f -name '*.apk' | while read apk; do
             cp "$apk" release-files/
             gpg --batch --yes --local-user "$KEY" --detach-sign --output "release-files/$(basename "$apk").sig" "$apk"
           done
+          gpg --armor --export "$KEY" > release-files/v2rayNG-public-key.asc
 
-          gpg --armor --export "$KEY" > release-files/v2rayN-public-key.asc
-
-      - name: Upload APKs, signatures and public key to release
+      - name: Upload APKs to release
         uses: svenstaro/upload-release-action@v2
         with:
           file: release-files/*
