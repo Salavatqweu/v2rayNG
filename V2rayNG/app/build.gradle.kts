@@ -61,28 +61,6 @@ android {
     packaging { jniLibs { useLegacyPackaging = true } }
 }
 
-tasks.register("downloadFakeSniBinaries") {
-    val assetDir = file("src/main/assets/fakesni")
-    val commit = "e4c09c584b3b8d47fbfc5075ac8dde1570bdc513"
-    val files = mapOf(
-        "sni-spoofing-arm64" to "https://raw.githubusercontent.com/Salavatqweu/fakesni/$commit/app/src/main/assets/sni-spoofing-arm64",
-        "sni-spoofing-arm7" to "https://raw.githubusercontent.com/Salavatqweu/fakesni/$commit/app/src/main/assets/sni-spoofing-arm7",
-    )
-    outputs.files(files.keys.map { assetDir.resolve(it) })
-    doLast {
-        assetDir.mkdirs()
-        files.forEach { (name, url) ->
-            val target = assetDir.resolve(name)
-            if (!target.exists() || target.length() == 0L) {
-                logger.lifecycle("Downloading embedded FakeSNI binary: $name")
-                java.net.URL(url).openStream().use { input -> input.copyTo(target.outputStream()) }
-            }
-        }
-    }
-}
-
-tasks.named("preBuild") { dependsOn("downloadFakeSniBinaries") }
-
 dependencies {
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
     implementation(libs.androidx.core.ktx)
@@ -114,7 +92,6 @@ dependencies {
     implementation(libs.reorderable)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
     testImplementation(libs.org.mockito.mockito.inline)
     testImplementation(libs.mockito.kotlin)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
