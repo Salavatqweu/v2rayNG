@@ -36,9 +36,7 @@ jobs:
 
     - name: Install NDK
       run: |
-        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-          --channel=0 \
-          --install "ndk;29.0.14206865"
+        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --channel=0 --install "ndk;29.0.14206865"
         echo "NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
         sed -i '10i\
         \
@@ -69,7 +67,6 @@ jobs:
       run: |
         pushd AndroidLibXrayLite
         CURRENT_TAG=$(git describe --tags --abbrev=0)
-        echo "Current tag in this repo: $CURRENT_TAG"
         echo "CURRENT_TAG=$CURRENT_TAG" >> $GITHUB_ENV
         popd
 
@@ -113,17 +110,29 @@ jobs:
   sign-and-release:
     needs: build
     runs-on: ubuntu-26.04
-    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != '' && secrets.GPG_PRIVATE_KEY != '' && secrets.APP_KEYSTORE_BASE64 != ''
+    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
 
     steps:
+      - name: Check release secrets
+        env:
+          HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY }}
+          HAS_KEYSTORE: ${{ secrets.APP_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$HAS_GPG" ] || [ -z "$HAS_KEYSTORE" ]; then
+            echo "Release signing secrets are not configured. Skipping release is required for now."
+            exit 1
+          fi
+
       - name: Download APK artifacts
         uses: actions/download-artifact@v8
         with:
           path: release
 
       - name: Sign APK files
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
-          printf '%s' "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
           KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')
           mkdir -p release-files
           find release -type f -name '*.apk' | while read apk; do
@@ -132,7 +141,7 @@ jobs:
           done
           gpg --armor --export "$KEY" > release-files/v2rayNG-public-key.asc
 
-      - name: Upload APKs, signatures and public key to release
+      - name: Upload APKs to release
         uses: svenstaro/upload-release-action@v2
         with:
           file: release-files/*
