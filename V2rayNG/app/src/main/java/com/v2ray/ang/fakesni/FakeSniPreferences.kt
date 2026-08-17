@@ -19,7 +19,6 @@ object FakeSniPreferences {
     private const val NETWORK_INTERFACE = "fakesni.network_interface"
     private const val ADD_IP_RULE = "fakesni.add_ip_rule"
 
-    @Suppress("UNUSED_PARAMETER")
     fun load(context: Context): FakeSniConfig = FakeSniConfig(
         enabled = MmkvManager.decodeSettingsBool(ENABLED, false),
         listenPort = MmkvManager.decodeSettingsString(LISTEN_PORT, "40443").toIntOrNull() ?: 40443,
@@ -36,22 +35,22 @@ object FakeSniPreferences {
         addIpRule = MmkvManager.decodeSettingsBool(ADD_IP_RULE, false),
     )
 
-    fun setEnabled(enabled: Boolean) = MmkvManager.encodeSettingsBool(ENABLED, enabled)
+    fun setEnabled(enabled: Boolean) = MmkvManager.encodeSettings(ENABLED, enabled)
     fun isEnabled() = MmkvManager.decodeSettingsBool(ENABLED, false)
 
     fun save(config: FakeSniConfig) {
-        MmkvManager.encodeSettingsBool(ENABLED, config.enabled)
-        MmkvManager.encodeSettingsString(FAKE_SNI, config.fakeSni)
-        MmkvManager.encodeSettingsString(UTLS, config.utls)
-        MmkvManager.encodeSettingsString(INJECTOR, config.injector)
-        MmkvManager.encodeSettingsString(LISTEN_PORT, config.listenPort.toString())
-        MmkvManager.encodeSettingsString(FAKE_REPEAT, config.fakeRepeat.toString())
-        MmkvManager.encodeSettingsString(FAKE_DELAY, config.fakeDelay)
-        MmkvManager.encodeSettingsString(ACK_TIMEOUT, config.ackTimeout)
-        MmkvManager.encodeSettingsBool(FRAGMENT, config.enableFragment)
-        MmkvManager.encodeSettingsString(FRAGMENT_DELAY, config.fragmentDelay)
-        MmkvManager.encodeSettingsString(SNI_CHUNK, config.sniChunk.toString())
-        MmkvManager.encodeSettingsString(NETWORK_INTERFACE, config.networkInterface)
-        MmkvManager.encodeSettingsBool(ADD_IP_RULE, config.addIpRule)
+        MmkvManager.encodeSettings(ENABLED, config.enabled)
+        MmkvManager.encodeSettings(FAKE_SNI, config.fakeSni)
+        MmkvManager.encodeSettings(UTLS, config.utls)
+        MmkvManager.encodeSettings(INJECTOR, config.injector)
+        MmkvManager.encodeSettings(LISTEN_PORT, config.listenPort.toString())
+        MmkvManager.encodeSettings(FAKE_REPEAT, config.fakeRepeat.toString())
+        MmkvManager.encodeSettings(FAKE_DELAY, config.fakeDelay)
+        MmkvManager.encodeSettings(ACK_TIMEOUT, config.ackTimeout)
+        MmkvManager.encodeSettings(FRAGMENT, config.enableFragment)
+        MmkvManager.encodeSettings(FRAGMENT_DELAY, config.fragmentDelay)
+        MmkvManager.encodeSettings(SNI_CHUNK, config.sniChunk.toString())
+        MmkvManager.encodeSettings(NETWORK_INTERFACE, config.networkInterface)
+        MmkvManager.encodeSettings(ADD_IP_RULE, config.addIpRule)
     }
 }
