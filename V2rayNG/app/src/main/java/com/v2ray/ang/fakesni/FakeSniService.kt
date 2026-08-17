@@ -146,7 +146,7 @@ exec ${config.binaryArgs(binaryPath)}
 
     private fun notification(text: String): Notification =
         NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_name)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("FakeSNI")
             .setContentText(text)
             .setOngoing(true)
