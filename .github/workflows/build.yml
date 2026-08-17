@@ -78,6 +78,17 @@ jobs:
         fileName: 'libv2ray.aar'
         out-file-path: V2rayNG/app/libs/
 
+    - name: Download embedded FakeSNI binaries
+      run: |
+        set -euo pipefail
+        ASSET_DIR="${{ github.workspace }}/V2rayNG/app/src/main/assets/fakesni"
+        COMMIT="e4c09c584b3b8d47fbfc5075ac8dde1570bdc513"
+        mkdir -p "$ASSET_DIR"
+        curl -fL --retry 3 "https://raw.githubusercontent.com/Salavatqweu/fakesni/$COMMIT/app/src/main/assets/sni-spoofing-arm64" -o "$ASSET_DIR/sni-spoofing-arm64"
+        curl -fL --retry 3 "https://raw.githubusercontent.com/Salavatqweu/fakesni/$COMMIT/app/src/main/assets/sni-spoofing-arm7" -o "$ASSET_DIR/sni-spoofing-arm7"
+        chmod 755 "$ASSET_DIR/sni-spoofing-arm64" "$ASSET_DIR/sni-spoofing-arm7"
+        ls -lh "$ASSET_DIR"
+
     - name: Setup Java
       uses: actions/setup-java@v5.7.0
       with:
