@@ -21,16 +21,16 @@ object FakeSniPreferences {
 
     fun load(context: Context): FakeSniConfig = FakeSniConfig(
         enabled = MmkvManager.decodeSettingsBool(ENABLED, false),
-        listenPort = MmkvManager.decodeSettingsString(LISTEN_PORT, "40443").toIntOrNull() ?: 40443,
+        listenPort = MmkvManager.decodeSettingsString(LISTEN_PORT, "40443")?.toIntOrNull() ?: 40443,
         fakeSni = MmkvManager.decodeSettingsString(FAKE_SNI, "hcaptcha.com").orEmpty(),
         utls = MmkvManager.decodeSettingsString(UTLS, "firefox").orEmpty(),
         injector = MmkvManager.decodeSettingsString(INJECTOR, "passive").orEmpty(),
-        fakeRepeat = MmkvManager.decodeSettingsString(FAKE_REPEAT, "1").toIntOrNull()?.coerceIn(1, 20) ?: 1,
+        fakeRepeat = MmkvManager.decodeSettingsString(FAKE_REPEAT, "1")?.toIntOrNull()?.coerceIn(1, 20) ?: 1,
         fakeDelay = MmkvManager.decodeSettingsString(FAKE_DELAY, "2ms").orEmpty(),
         ackTimeout = MmkvManager.decodeSettingsString(ACK_TIMEOUT, "2s").orEmpty(),
         enableFragment = MmkvManager.decodeSettingsBool(FRAGMENT, false),
         fragmentDelay = MmkvManager.decodeSettingsString(FRAGMENT_DELAY, "500ms").orEmpty(),
-        sniChunk = MmkvManager.decodeSettingsString(SNI_CHUNK, "3").toIntOrNull()?.coerceIn(1, 64) ?: 3,
+        sniChunk = MmkvManager.decodeSettingsString(SNI_CHUNK, "3")?.toIntOrNull()?.coerceIn(1, 64) ?: 3,
         networkInterface = MmkvManager.decodeSettingsString(NETWORK_INTERFACE, "rmnet_data0").orEmpty(),
         addIpRule = MmkvManager.decodeSettingsBool(ADD_IP_RULE, false),
     )
