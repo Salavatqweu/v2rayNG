@@ -32,6 +32,7 @@ class FakeSniService : Service() {
         private const val CHANNEL_ID = "fakesni"
         private const val NOTIFICATION_ID = 40443
         private const val BINARY_NAME = "sni-spoofing"
+        private const val CHAIN_NAME = "V2RAYNG_FAKESNI"
         private const val ASSET_ARM64 = "fakesni/sni-spoofing-arm64"
         private const val ASSET_ARM7 = "fakesni/sni-spoofing-arm7"
 
@@ -117,9 +118,22 @@ class FakeSniService : Service() {
     private fun buildScript(config: FakeSniConfig, binaryPath: String): String = """
 #!/system/bin/sh
 chmod +x '$binaryPath'
+
+# Keep FakeSNI's own root connection out of the redirect to avoid a loop.
+iptables -t nat -D OUTPUT -j $CHAIN_NAME 2>/dev/null || true
+iptables -t nat -F $CHAIN_NAME 2>/dev/null || true
+iptables -t nat -X $CHAIN_NAME 2>/dev/null || true
+iptables -t nat -N $CHAIN_NAME
+iptables -t nat -A $CHAIN_NAME -m owner --uid-owner 0 -j RETURN
+iptables -t nat -A $CHAIN_NAME -p tcp -d '${config.connectHost}' --dport ${config.connectPort} -j REDIRECT --to-ports ${config.listenPort}
+iptables -t nat -I OUTPUT 1 -j $CHAIN_NAME
+
+# Clean up any old native process before launching the current session.
 pkill -TERM -f '$BINARY_NAME' 2>/dev/null || true
 sleep 0.2
 ${if (config.addIpRule) "ip rule add uidrange 0-0 lookup ${config.networkInterface} pref 1500 2>/dev/null || true" else ""}
+
+# The binary receives the real destination and emits the spoofed ClientHello.
 exec ${config.binaryArgs(binaryPath)}
 """.trimIndent()
 
@@ -129,7 +143,15 @@ exec ${config.binaryArgs(binaryPath)}
         process?.destroy()
         process = null
         try {
-            Runtime.getRuntime().exec(arrayOf("su", "-c", "pkill -TERM -f '$BINARY_NAME' 2>/dev/null || true")).waitFor()
+            Runtime.getRuntime().exec(
+                arrayOf(
+                    "su", "-c",
+                    "pkill -TERM -f '$BINARY_NAME' 2>/dev/null || true; " +
+                        "iptables -t nat -D OUTPUT -j $CHAIN_NAME 2>/dev/null || true; " +
+                        "iptables -t nat -F $CHAIN_NAME 2>/dev/null || true; " +
+                        "iptables -t nat -X $CHAIN_NAME 2>/dev/null || true"
+                )
+            ).waitFor()
         } catch (_: Exception) {
         }
         stopForeground(STOP_FOREGROUND_REMOVE)
